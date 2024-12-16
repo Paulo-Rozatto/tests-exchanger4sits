@@ -1,0 +1,5 @@
+.venv/
+*.pid
+__pycache__
+output/
+models/

@@ -47,6 +47,8 @@ def validate(config, testloader, model, writer_dict, device='cpu'):
         for batch in metric_logger.log_every(testloader, config.PRINT_FREQ, header):
 
             batch = recursive2device(batch, device)
+            if (torch.all(batch['label'][:, 0, ...] == -1)):
+                continue
             outputs, losses = model(batch)
 
             if task_type == 'cls':

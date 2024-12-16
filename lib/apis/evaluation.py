@@ -59,15 +59,19 @@ def testeval(config, testloader, model, saved_path, device='cpu'):
     with torch.no_grad():
 
         for batch in metric_logger.log_every(testloader, 1, header):
+            print("BAAAAAAATCH")
 
             batch = recursive2device(batch, device)
 
             if task_type == 'cls':
+                print("CLS!!!!")
                 outputs = model(batch, return_attn=return_attn)[0]
                 preds = outputs['pred_logits'] # [b, c]
                 preds = preds.softmax(dim=1).argmax(dim=1)
             elif task_type == 'sem_seg':
+                print("SEM SEG!!!!")
                 if config.TEST.MULTI_CROP_TEST:
+                    print(">> config test multi crop test")
                     # workaround for CUDA OOM crop & stitch not test augmentation
                     crop_size = config.TEST.CROP_SIZE
                     if dist_helper.get_world_size() > 1:
@@ -75,6 +79,7 @@ def testeval(config, testloader, model, saved_path, device='cpu'):
                     else:
                         outputs = model.multi_crop_inference(batch, crop_size)
                 else:
+                    print("batch")
                     outputs = model(batch)[0]
                 preds = outputs['preds'] # [b, c, h, w] or [b, h, w]
                 if preds.ndim == 4:
@@ -85,13 +90,19 @@ def testeval(config, testloader, model, saved_path, device='cpu'):
                         )
                     preds = preds.softmax(dim=1).argmax(dim=1)
             elif task_type in ('paps_pano', 'maskformer_pano'):
+                # print("PAPS PANO")
                 outputs = model(batch)[0]
                 preds = outputs
+                # for key, value in preds.items():
+                #     if torch.is_tensor(value):
+                #         # print(key)
+                #         preds[key] = value.detach().cpu()
             else:
                 raise NotImplementedError
 
             eval_metric.add(preds, outputs['labels'])
             if return_attn:
+                print(1)
                 y_true_list.append(outputs['labels'])
                 y_pred_list.append(preds)
                 attn_list.append(outputs['attn'].unbind(dim=0)) # [bsz, num_stages, seq_len, num_clusters] for variable length input
@@ -103,6 +114,7 @@ def testeval(config, testloader, model, saved_path, device='cpu'):
         #scores = eval_metric.value()
 
     if return_attn:
+        print(2)
         y_true = torch.cat(y_true_list, dim=0).cpu().numpy()
         y_pred = torch.cat(y_pred_list, dim=0).cpu().numpy()
         parcel_ids = torch.cat(parcel_id_list, dim=0).cpu().numpy()

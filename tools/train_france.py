@@ -44,7 +44,8 @@ def parse_args():
 
     parser.add_argument('--cfg',
                         help='experiment configuration file name',
-                        required=True,
+                        required=False,
+                        default="/home/fourier/paulo/biomass/Exchanger4SITS/configs/pastis/finetune/pastis_semseg_exchanger_unet_Fold0.yml",
                         type=str)
     parser.add_argument('--resume', action='store_true', default=False,
                         help='resume training from a checkpoint')
@@ -52,9 +53,9 @@ def parse_args():
                         help='fine tune from a pretrained model')
     parser.add_argument('--n-fold', type=int, default=None,
                         help='n fold for cross validation')
-    parser.add_argument('--seed', type=int, default=None,
+    parser.add_argument('--seed', type=int, default=42,
                         help='random seed')
-    parser.add_argument('--workers', type=int, default=16,
+    parser.add_argument('--workers', type=int, default=8,
                         help='number of data loading workers (default: 16)')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -87,6 +88,7 @@ def main():
 
     if args.seed is not None:
         seed = args.seed + dist_helper.get_rank()
+        print("Seed: ", seed)
         torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
@@ -237,6 +239,12 @@ def main():
                 logger.info(f"=> loaded checkpoint (epoch {last_epoch})")
 
     model = model.to(device)
+    
+    # checkpoint_path = '/home/fourier/paulo/biomass/Exchanger4SITS/output/run08/PASTIS-R/pastis_semseg_exchanger_unet_Fold0/Fold_0/best.pth'
+    # model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+    # logger.info(f"=> loaded checkpoint:\n{checkpoint_path}")
+
+
 
     lr_scaler = dist_helper.get_world_size()
     # optimizer

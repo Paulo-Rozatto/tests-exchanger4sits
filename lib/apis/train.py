@@ -16,6 +16,8 @@ from torch.nn import functional as F
 
 from utils import dist_helper, recursive2device
 
+from math import isnan
+
 
 def train(config, epoch, max_iters,
           trainloader, optimizer, lr_scheduler,
@@ -29,10 +31,17 @@ def train(config, epoch, max_iters,
         dist_helper.SmoothedValue(window_size=1, fmt='{value:.8f}'))
     header = f'Epoch: [{epoch}]'
 
+    debug_count = 0
     for batch in metric_logger.log_every(trainloader, config.PRINT_FREQ, header):
+        debug_count += 1
+
         optimizer.zero_grad()
 
         batch = recursive2device(batch, device)
+
+        if (torch.all(batch['label'][:, 0, ...] == -1)):
+            continue
+
         outputs, losses = model(batch)
 
         metric_logger.update(**losses)
@@ -42,10 +51,8 @@ def train(config, epoch, max_iters,
             tot_loss += l
 
         tot_loss.backward()
-
         optimizer.step()
         lr_scheduler.step()
-
         metric_logger.update(TotalLoss=tot_loss)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 

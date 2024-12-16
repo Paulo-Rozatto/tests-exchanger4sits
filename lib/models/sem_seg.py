@@ -8,6 +8,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
+from torchvision.models.segmentation import deeplabv3_resnet101
+from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 
 from timm.models.layers import trunc_normal_
 
@@ -70,6 +72,13 @@ class Segmentor(nn.Module):
                 config,
                 in_channels=temp_out_dim,
             )
+        elif space_encoder_type == 'deeplabv3':
+        #    self.space_encoder = deeplabv3_resnet101(weights='DEFAULT')
+        #    self.space_encoder.backbone.conv1 = nn.Conv2d(temp_out_dim, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        #    self.space_encoder.classifier[4] = nn.Conv2d(256, 19, kernel_size=(1, 1), stride=(1, 1))
+           self.space_encoder = DeepLabHead(temp_out_dim, 19)
+           gamma = config.LOSS.FOCAL[1]
+           self.ce_loss = FocalCELoss(gamma=gamma, size_average=True, ignore_index=ignore_index)
         else:
             raise NotImplementedError
 
@@ -94,6 +103,12 @@ class Segmentor(nn.Module):
     def losses(self, outputs: Dict[str, Tensor], targets: Tensor, **kwargs):
         if self.space_encoder_type == 'maskformer':
             losses = self.space_encoder.losses(outputs, targets)
+        elif self.space_encoder_type == 'deeplabv3':
+            preds = outputs['out']
+            if preds.shape[-2:] != targets.shape[-2:]:
+                preds = F.interpolate(preds, size=targets.shape[-2:], mode='bilinear', align_corners=False)
+            ce_loss = self.ce_loss(preds, targets)
+            losses = {'loss_ce': ce_loss}
         else:
             preds = outputs['preds']
             if preds.shape[-2:] != targets.shape[-2:]:
@@ -133,6 +148,11 @@ class Segmentor(nn.Module):
         if self.space_encoder_type == 'maskformer':
             out: Dict[str, Tensor] = self.space_encoder(x, (H, W))
             outputs.update(**out)
+        elif self.space_encoder_type == 'deeplabv3':
+            out = self.space_encoder(x)
+            # outputs.update(**out)
+            outputs['out'] = out#['out']
+            outputs['preds'] = out#['out']
         else:
             feats: List[Tensor] = self.space_encoder(x)
             outputs['preds'] = self.cls_head(feats[-1] if self.space_encoder_type == 'unet' else feats)

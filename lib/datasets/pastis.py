@@ -8,6 +8,7 @@ import json
 import os
 import pickle
 import zarr
+from io import StringIO
 
 import numpy as np
 import pandas as pd
@@ -95,7 +96,16 @@ class PASTISReader(data.Dataset):
 
         sample = {}
         for s, folder, tdr in zip(self.modality, self.data_folders, self.temp_drop_rate):
-            data = zarr.load(os.path.join(folder, f'{s}_{row.id}.zarr'))
+            # print(os.path.join(folder, f'{s}_{row.id}.zarr'))
+            # data = zarr.load(os.path.join(folder, f'{s}_{row.id}.zarr'))
+            # data = {
+            #     satellite: np.load(
+            #         os.path.join(folder, f"{s}_{row.id}.npy")
+            #     ).astype(np.float32)
+            #     for satellite in s
+            # }  # T x C x H x W arrays
+            data = np.load(os.path.join(folder, f"{s}_{row.id}.npy")).astype(np.float32)
+            
             date_positions = self.prepare_dates(row[f'dates-{s}'])
 
             data = np.clip(data, 0, self.max_val).astype(np.float32)
@@ -119,8 +129,8 @@ class PASTISReader(data.Dataset):
             sample[f'date_positions_{s}'] = torch.from_numpy(date_positions + 1)[None, :]
 
         if self.task_type == 'sem_seg':
-            pixel_semantic_annotation = zarr.load(os.path.join(
-                self.semantic_label_folder, f'TARGET_{row.id}.zarr'))[0].astype(np.int32)
+            pixel_semantic_annotation = np.load(os.path.join(
+                self.semantic_label_folder, f'TARGET_{row.id}.npy'))[0].astype(np.int32)
             pixel_semantic_annotation[
                 pixel_semantic_annotation == self.void_label
             ] = self.ignore_index
@@ -163,10 +173,26 @@ class PASTISReader(data.Dataset):
             )
             sample['label'] = torch.from_numpy(label).permute(2, 0, 1)
         elif self.task_type == 'maskformer_pano':
-            instance_ids = zarr.load(os.path.join(
-                self.instance_label_folder, f'INSTANCES_{row.id}.zarr'))
-            pixel_semantic_annotation = zarr.load(os.path.join(
-                self.semantic_label_folder, f'TARGET_{row.id}.zarr'))[0].astype(np.int32)
+            # instance_ids = zarr.load(os.path.join(
+            #     self.instance_label_folder, f'INSTANCES_{row.id}.zarr'))
+
+            instance_ids = np.load(
+                    os.path.join(
+                        self.instance_label_folder,
+                        f"INSTANCES_{row.id}.npy",
+                    )
+                )
+        
+
+            # pixel_semantic_annotation = zarr.load(os.path.join(
+            #     self.semantic_label_folder, f'TARGET_{row.id}.zarr'))[0].astype(np.int32)
+            
+            pixel_semantic_annotation = np.load(
+                os.path.join(
+                    self.semantic_label_folder, f"TARGET_{row.id}.npy"
+                )
+            )[0].astype(np.int32)
+
             pixel_semantic_annotation[
                 pixel_semantic_annotation == self.void_label
             ] = self.ignore_index
@@ -199,7 +225,8 @@ class PASTISReader(data.Dataset):
         return sample
 
     def prepare_dates(self, date_dict):
-        d = pd.DataFrame().from_dict(date_dict, orient='index')
+        # d = pd.DataFrame().from_dict(date_dict, orient='index')
+        d = pd.read_json(StringIO(date_dict), orient='index')
         d = d[0].apply(
             lambda x: (
                 dt.datetime(int(str(x)[:4]), int(str(x)[4:6]), int(str(x)[6:]))

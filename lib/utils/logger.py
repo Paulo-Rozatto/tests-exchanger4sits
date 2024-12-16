@@ -45,4 +45,5 @@ def create_logger(cfg, cfg_name, phase='train', n_fold=None):
     if 'train' in phase:
         tensorboard_log_dir.mkdir(parents=True, exist_ok=False)
 
+    print("str(final_output_dir): ", str(final_output_dir))
     return logger, str(final_output_dir), str(tensorboard_log_dir)
